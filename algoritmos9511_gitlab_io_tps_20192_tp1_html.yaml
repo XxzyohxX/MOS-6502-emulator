@@ -1,0 +1,500 @@
+ Algoritmos y Programación I
+(95.11)   » Trabajo Práctico 1
+1.0
+Buscar documentos Trabajo Práctico 1
+Fecha de entrega: Domingo 15 de diciembre
+ÍNDICE
+Sobre la materia Introducción
+Calendario
+Trabajos Prácticos En este trabajo completaremos el entendimiento y la implmentación del MOS 6502.
+Guías de ejercicios
+Material Los registros del MOS 6502
+Lista de correos
+Internamente el CPU del MOS 6502 contaba con unos pocos registros:
+Enlaces
+Encuestas El registro de status:
+Notas
+Registro de 8 bits que almacenaba los flags del procesador (ver EJ3).
+Entregas
+El contador de programa (PC):
+Registro de 16 bits que almacena la próxima instrucción a ser ejecutada.
+Acumulador (A):
+Registro de 8 bits sobre el cual se opera.
+Índice X (X):
+Registro de 8 bits para almacenar contadores u offsets para acceder a memoria.
+Índice Y (Y):
+Similar a X.
+El puntero de stack (SP):
+Registro de 8 bits para almacenar el byte bajo de la direción de memoria del stack.
+El stack
+El stack del MOS 6502 tenía 256 bytes de capacidad. Los mismos están en la primera página de
+memoria, es decir, la página cuyo byte más pesado es 0x01 . Entonces para el stack están
+reservadas las posiciones comprendidas entre 0x0100  y 0x01FF .
+Cuando se implementa un apilado en el stack el valor se almacena en la posición actual y el SP se
+decrementa, cuando se realiza un desapilado se incrementa y el valor es el actual. Es decir, el SP
+almacena la posición del siguiente byte de stack disponible para ser utilizado y crece hacia abajo.
+El mapa de memoria
+El MOS 6502 tenía una serie de registros reservados con direcciones de memoria que refieren a
+fragmentos de programa que atienden funciones especiales. Es decir un par de registros de la
+memoria son punteros a funciones que se deben ejecutar bajo determinadas situaciones, estos son
+los últimos 6 bytes de memoria, los cuales corresponden a 3 direcciones de código:
+0xFFFC  -- 0xFFFD :
+Es la dirección del programa a ser ejecutado al inicio. Por ejemplo, si el contenido de la
+memoria a partir de la posición 0xFFFC  fuera {0xAA, 0xBB}  al iniciar el micro PC debe
+setearse en 0xBBAA .
+0xFFFA  -- 0xFFFB :
+Es la dirección del manejador de interrupciones no enmascarables. Cuando ocurra una
+interrupción debe ejecutarse ese código.
+0xFFFE  -- 0xFFFF :
+Es la dirección del manejador de BRK  desde interrupción. Cuando esto ocurra debe
+ejecutarse ese código.
+Modos de direccionamiento de memoria
+El MOS 6502 tenía 13 modos diferentes de direccionar memoria:
+No indexados, no en memoria
+Implícito:
+En este modo la instrucción ya sabe qué memoria afecta. Por ejemplo la operación CLC ,
+limpieza de carry (CLear Carry flag) no necesita leer nada de ningún lado, está implícito que
+lo que hace es poner en cero el carry C.
+Acumulador:
+En este modo la instrucción se opera sobre el acumulador. Por ejemplo la instrucción LSR
+A , desplazamiento lógico a la derecha (Logical Shift Right) opera específicamente sobre el
+acumulador (la instrucción LSR  puede actuar también directamente sobre memoria).
+Inmediata:
+En este modo se carga una constante de 8 bits que está en memoria a continuación de la
+instrucción que se está ejecutando. Por ejemplo la instrucción LDA #10 , cargar en
+acumulador (LoaD Accumulator) carga el valor decimal 10 en el acumulador. En el ejemplo la
+operación LDA  inmediata tiene el código 0xA9  por lo que LDA #10  en memoria ocupará
+dos bytes: {0xA9, 10}  o {0xA9, 0x0A} .
+No indexados, en memoria
+Relativa:
+(Sólo usada por los condicionales.) En este modo se carga una constante de 8 bits que está
+en memoria a continuación de la instrucción que se está ejecutando. Este es un número
+signado. El resultado (en caso de tomar el condicional) será el de sumar PC al byte signado.
+Absoluta:
+En este modo se carga el valor contenido en la posición de memoria de 16 bits que se
+especifica a continuación de la instrucción. Por ejemplo la instrucción LDA $ABCD  carga en
+el acumulador el contenido de la posición de memoria 0xABCD . En el ejemplo la operación
+LDA  absoluta tiene el código 0xAD  por lo que LDA $ABCD  se codificará {0xAD, 0xCD, 0XAB} .
+Cabe aclarar que el MOS 6502 es una arquitectura little endian, por lo que el byte menos
+pesado va primero.
+Página cero:
+En este modo se carga una constante de 8 bits que está en memoria a continuación de la
+instrucción que se está ejecutando y que corresponde al byte menos pesdo de una dirección
+en la primer página de memoria (es decir la página tal que su primer byte es el 0x00 ). Por
+ejemplo si la constante fuera 0xAA  deberá utilizarse la dirección 0x00AA .
+Indirecta:
+(Sólo utilizada para saltos.) Similar al direccionamiento absoluto, sólo que en este caso lo
+que importa no es la posición de memoria sino el contenido de esa posición de memoria. Es
+decir, por ejemplo, si hubiera un salto JMP ($1000) , es decir {0x6C, 0x00, 0x10}  y en la
+posición de memoria 0x1000  estuvieran los bytes {0xAA, 0xBB}  se deberá setear PC en
+0xBBAA .
+Indexadas
+Índice X absoluto:
+Como en el direccionamiento absoluto, pero sumando el valor del registro X a la posición
+leída. Es decir, si se lee la posición 0x1000  y el registro X vale 0xAA  se debe acceder a
+0x10AA .
+Índice Y absoluto:
+Ídem índice X pero adicionando el valor de Y.
+Página cero X:
+Como el direccionamiento de página cero, pero sumándole el valor de X. Si en la suma
+hubiera un carry el mismo se descarta. Por ejemplo si la constante es 0xC0  y el registro X
+valiera 0x60  el resultado de la suma será 0x120 , pero como se descarta el carry se accede a
+la dirección 0x0020 .
+Página cero Y:
+Ídem página cero X pero con Y.
+Indexada indirecta (X):
+Como el acceso de página cero X sólo que se accede a lo apuntado por el resultado. Es decir,
+si se utilizara el ejemplo anterior y en la posición de memoria 0x20  estuviera el contenido
+{0xAA, 0xBB}  se trabajaría sobre el contenido de la posición de memoria 0xBBAA .
+Indirecta indexada (Y):
+Se lee una constante de 8 bits la cual representa una posición de página cero. Se accede a la
+memoria apuntada por esa posición pero sumando el valor de Y. Por ejemplo, si la constante
+fuera 0x20 , en la posición 0x0020  estuviera de contenido {0x00, 0xAA}  y el registro Y
+valiera 0xBB  se accedería a la posición 0xAABB , es decir, la suma de 0xAA00  con Y.
+Instrucciones
+El MOS 6502 tenía 151 instrucciones codificadas en 56 mnemónicos:
+ Advertencia
+Se va a utilizar la siguiente convención de códigos y notación:
+A:
+Acumulador.
+M:
+El operando que diga el direccionamiento.
+X, Y:
+Los registros X e Y respectivamente.
+PC:
+El contador de programa.
+SP:
+El puntero de stack.
+C, Z, V, N, D, B, I:
+Los flags Carry, Zero, oVerflow, Negative, Decimal, Break e Interrupt respectivamente.
+operando = operación => flags afectados:
+Es decir la operación modifica al operando y además el resultado de la operación se refleja
+en los flags específicos.
+opcode: direccionamiento (ciclos):
+Para esa operación con ese código de operación (instrucción) se utiliza determinado
+direccionamiento y demora tantos ciclos de máquina.
+Estos son las 151 instrucciones:
+ADC , ADd with Carry, sumar con carry:
+A = A + M + C => Z, C, N
+Opcodes: 0x69 : inmediato (2), 0x65 : página cero (3), 0x75 : página cero X (4), 0x6D :
+absoluto (4), 0x7D : absoluto X (4), 0x79 : absoluto Y (4), 0x61 : indexado indirecto X (6),
+0x71 : indirecto indexado Y (5).
+Suma A con la memoria con el bit de carry. El resultado se almacena en A. El registro de
+status debe registrar si el resultado fue cero o si hubo un carry o si fue un número negativo.
+AND , logical AND, and lógico:
+A = A & M => Z, N
+Opcodes: 0x29 : inmediato (2), 0x25 : página cero (3), 0x35 : página cero X (4), 0x2D :
+absoluto (4), 0x3D : absoluto X (4), 0x39 : absoluto Y (4), 0x21 : indexado indirecto X (6),
+0x31 : indirecto indexado Y (5).
+Realiza el and de bits entre A y M.
+ASL , Arithmetic Shift Left, shift izquierdo aritmético:
+A = A << 1 => Z, C, N o M = M << 1 => Z, C, N
+Opcodes: 0x0A : acumulador (2), 0x06 : página cero (5), 0x16 : página cero X (6), 0x0E :
+absoluto (6), 0x1E : absoluto X (7).
+Realiza un shift a izquierda. Ocurre un carry cuando estaba el bit 7 presente en el operando,
+o, lo que es lo mismo, en el resultado se encuentra el bit de carry.
+BCC , Branch if Carry Clear, saltar si el carry está limpio:
+PC += M
+Opcodes: 0x90 : relativo (2).
+Si C está limpio se modifica PC, si no no se hace nada.
+BCS , Branch if Carry Set, saltar si el carry está seteado:
+PC += M
+Opcodes: 0xB0 : relativo (2).
+Si C está en 1 se modifica PC, si no no se hace nada.
+BEQ , Branch if EQual, saltar si son iguales:
+PC += M
+Opcodes: 0xF0 : relativo (2).
+Si Z está en 1 se modifica PC, si no no se hace nada.
+BIT , BIt Test, testeo de bits:
+A & M => N, V
+Opcodes: 0x24 : página cero (3), 0x2C : absoluto (4).
+Se realiza (y no se guarda) la operación A & M, se setea Z según el resultado. Además se
+setean V y N con el valor de los bits 6 y 7 del resultado respectivamente.
+BMI , Brach if MInus, salto si es negativo:
+PC += M
+Opcodes: 0x30 : relativo (2).
+Si N está seteado se modifica PC, si no no se hace nada.
+BNE , Branch if Not Equal, salto si es distinto:
+PC += M
+Opcodes: 0xD0 : relativo (2).
+Si Z está limpio se modifica PC, si no no se hace nada.
+BPL , Branch if Positive, salto si es positivo:
+PC += M
+Opcodes: 0x10 : relativo (2).
+Si N está limpio se modifica PC, si no no se hace nada.
+BRK , force interrupt, forzar interrupción:
+PC => B
+Opcodes: 0x00 : implícito (7).
+Fuerza la generación de un pedido de interrupción. Cuando esto ocurre se deben apilar en el
+stack primero el PC, luego el registro de status y después modificar el PC a la dirección
+contenida en los bytes 0xFFFE  -- 0xFFFF . Después de hacer esto, se debe setear B.
+BVC , Branch if oVerflow Clear, salto si overflow está limpio:
+PC += M
+Opcodes: 0x50 : relativo (2).
+Si V está limpio se modifica PC, si no no se hace nada.
+BVS , Branch if oVerflow Set, salto si overflow está seteado:
+PC += M
+Opcodes: 0x70 : relativo (2).
+Si V está seteado se modifica PC, si no no se hace nada.
+CLC , CLear Carry flag, limpiar flag de carry:
+C = 0
+Opcodes: 0x18 : implícito (2).
+CLD , CLear Decimal mode, limpiar flag de decimal:
+D = 0
+Opcodes: 0xD8 : implícito (2).
+CLI , CLear Interrupt disable, limpiar flag de interrupción:
+I = 0
+Opcodes: 0x58 : implícito (2).
+CLV , CLear oVerflow flag, limpiar flag de overflow:
+V = 0
+Opcodes: 0xB8 : implícito (2).
+CMP , CoMPare, comparar:
+A - M => Z, C, N
+Opcodes: 0xC9 : inmediato (2), 0xC5 : página cero (3), 0xD5 : página cero X (4), 0xCD :
+absoluto (4), 0xDD : absoluto X (4), 0xD9 : absoluto Y (4), 0xC1 : indexado indirecto X (6),
+0xD1 : indirecto indexado Y (5).
+Setea en C el resultado de A >= M, setea en Z el resultado de A = M, setea N si A - M es
+negativo. Notar que esta operación no almacena el resultado en ningún lado y notar que
+siempre se setean los tres flags según el resultado.
+CPX , ComPare X register, comparar registro X:
+X - M => Z, C, N
+Opcodes: 0xE0 : inmediato (2), 0xE4 : página cero (3), 0xEC : absoluto (4).
+Idem a CMP  pero utilizando X en vez de A.
+CPY , ComPare Y register, comparar registro Y:
+Y - M => Z, C, N
+Opcodes: 0xC0 : inmediato (2), 0xC4 : página cero (3), 0xCC : absoluto (4).
+Idem a CMP  pero utilizando Y en vez de A.
+DEC , DECrement memory, decrementar memoria:
+M = M - 1 => Z, N
+Opcodes: 0xC6 : página cero (5), 0xD6 : página cero X (6), 0xCE : absoluto (6), 0xDE :
+absoluto X (7).
+DEX , DEcrement X register, decrementar registro X:
+X = X - 1 => Z, N
+Opcodes: 0xCA : implícito (2).
+DEY , DEcrement Y register, decrementar registro Y:
+Y = Y - 1 => Z, N
+Opcodes: 0x88 : implícito (2).
+EOR , Exclusive OR, o exclusivo:
+A = A ^ M => Z, N
+Opcodes: 0x49 : inmediato (2), 0x45 : página cero (3), 0x55 : página cero X (4), 0x4D :
+absoluto (4), 0x5D : absoluto X (4), 0x59 : absoluto Y (4), 0x41 : indexado indirecto X (6),
+0x51 : indirecto indexado Y (5).
+INC , INCrement memory, incrementar memoria:
+M = M + 1 => Z, N
+Opcodes: 0xE6 : página cero (5), 0xF6 : página cero X (6), 0xEE : absoluto (6), 0xFE :
+absoluto X (7).
+INX , INcrement X register, incrementar registro X:
+X += 1 => Z, N
+Opcodes: 0xE8 : implícito (2).
+INY , INcrement Y register, incrementar registro Y:
+Y += 1 => Z, N
+Opcodes: 0xC8 : implícito (2).
+JMP , JuMP, saltar:
+PC = M
+Opcodes: 0x4C : absoluto (3), 0x6C : indirecto (5).
+Setea el contador de programa en la posición de 16 bits dada por la memoria.
+JSR , Jump from SubRoutine, saltar desde subrutina.
+PC = M
+Opcodes: 0x20 : absoluto (7).
+Apila en el stack PC - 1, luego carga en PC la dirección contenida en M.
+LDA , LoaD Accumulator, cargar acumulador:
+A = M => Z, N
+Opcodes: 0xA9 : inmediato (2), 0xA5 : página cero (3), 0xB5 : página cero X (4), 0xAD :
+absoluto (4), 0xBD : absoluto X (4), 0xB9 : absoluto Y (4), 0xA1 : indexado indirecto X (6),
+0xB1 : indirecto indexado Y (5).
+LDX , LoaD X register, cargar registro X:
+X = M => Z, N
+Opcodes: 0xA2 : inmediato (2), 0xA6 : página cero (3), 0xB6 : página cero Y (4), 0xAE :
+absoluto (4), 0xBE : absoluto Y (4).
+LDY , LoaD Y register, cargar registro Y:
+Y = M => Z, N
+Opcodes: 0xA0 : inmediato (2), 0xA4 : página cero (3), 0xB4 : página cero X (4), 0xAC :
+absoluto (4), 0xBC : absoluto X (4).
+LSR , Logical Shift Right, corrimiento lógico a derecha:
+A = A >> 1 => Z, C, N o M = M >> 1 => Z, C, N
+Opcodes: 0x4A : acumulador (2), 0x46 : página cero (5), 0x56 : página cero X (6), 0x4E :
+absoluto (6), 0x5E : absoluto X (7).
+Realiza un shift a derecha. Ocurre un carry cuando estaba el bit 0 presente en el operando.
+NOP , No Operation, no operar:
+Opcodes: 0xEA : implícito (2).
+No hace nada (pierde 2 ciclos de máquina).
+ORA , logical inclusive OR, o inclusivo lógico:
+A = A | M => Z, N
+Opcodes: 0x09 : inmediato (2), 0x05 : página cero (3), 0x15 : página cero X (4), 0x0D :
+absoluto (4), 0x1D : absoluto X (4), 0x19 : absoluto Y (4), 0x01 : indexado indirecto X (6),
+0x11 : indirecto indexado Y (5).
+Realiza el o entre A y M y lo almacena en A. Setea Z y N.
+PHA , PusH Accumulator, apilar acumulador:
+Opcodes: 0x48  implícito (3).
+Apila A en el stack.
+PHP , PusH Processor status, apilar registro de status:
+Opcodes: 0x08  implícito (3).
+Apila el registro de status en el stack.
+PLA , PuLl Accumulator, desapilar acumulador:
+A => Z, N
+Opcodes: 0x68  implícito (4).
+Desapila el valor del stack en A. Setea Z y N dependiendo del valor.
+PLP , PuLl Processor status, desapilar registro de status:
+Opcodes: 0x28  implícito (4).
+Desapila el valor del stack en registro de status.
+ROL , ROtate Left, rotación a izquierda:
+A = A {{ 1 => Z, C, N o M = M {{ 1 => Z, C, N
+Opcodes: 0x2A : acumulador (2), 0x26 : página cero (3), 0x36 : página cero X (4), 0x2E :
+absoluto (4), 0x3E : absoluto X (4).
+Realiza la rotación a izquierda de A o M. C ingresa en el bit cero y el bit 7 pasa a C.
+ROR , ROtate Right, rotación a derecha:
+A = A }} 1 => Z, C, N o M = M }} 1 => Z, C, N
+Opcodes: 0x6A : acumulador (2), 0x66 : página cero (3), 0x76 : página cero X (4), 0x6E :
+absoluto (4), 0x7E : absoluto X (4).
+Realiza la rotación a derecha de A o M. C ingresa en el bit 7 y el bit 0 pasa a C.
+RTI , ReTurn from Interrupt, retorno de interrupción:
+Opcodes: 0x40 : implícito (6).
+Esta operación deshace lo hecho por BRK , es decir, desapila del stack al registro de status y
+luego desapila del stack al PC.
+RTS , ReTurn from Subroutine, retorno de subrutina
+PC
+Opcodes: 0x60 : implícito (6).
+Esta operación deshace lo hecho por JSR , es decir, desapila la dirección almacenada en el
+stack, le suma uno y la guarda en PC.
+SBC , SuBstract with Carry, resta con carry:
+A = A - M - (1 - C) => Z, C, N
+Opcodes: 0xE9 : inmediato (2), 0xE5 : página cero (3), 0xF5 : página cero X (4), 0xED :
+absoluto (4), 0xFD : absoluto X (4), 0xF9 : absoluto Y (4), 0xE1 : indexado indirecto X (6),
+0xF1 : indirecto indexado Y (5).
+Realiza la resta de A con M, si no hubiera C se resta uno más. Setea los flags de Z, C y N.
+SEC , SEt Carry flag, setear flag de carry:
+C = 1
+Opcodes: 0x38 : implícito (2).
+SED , SEt Decimal flag, setear flag de decimal:
+D = 1
+Opcodes: 0xF8 : implícito (2).
+SEI , SEt Interrupt flag, setear flag de interrupción:
+I = 1
+Opcodes: 0x78 : implícito (2).
+STA , STore Accumulator, guardar acumulador:
+M = A
+Opcodes: 0x85 : página cero (3), 0x95 : página cero X (4), 0x8D : absoluto (4), 0x9D :
+absoluto X (5), 0x99 : absoluto Y (5), 0x81 : indexado indirecto X (6), 0x91 : indirecto
+indexado Y (6).
+Guarda el contenido de A en M, no afecta los status.
+STX , STore X register, guardar registro X:
+M = X
+Opcodes: 0x86 : página cero (3), 0x96 : página cero Y (4), 0x8E : absoluto (4).
+STY , STore Y register, guardar registro Y:
+M = Y
+Opcodes: 0x84 : página cero (3), 0x94 : página cero Y (4), 0x8C : absoluto (4).
+TAX , Transfer Accumulator to X, transferir acumulador a X:
+X = A => Z, N
+Opcodes: 0xAA : implícito (2).
+Almacena A en X, setea Z y N según lo asignado.
+TAY , Transfer Accumulator to Y, transferir acumulador a Y:
+Y = A => Z, N
+Opcodes: 0xA8 : implícito (2).
+Almacena A en Y, setea Z y N según lo asignado.
+TSX , Transfer Stack pointer to X, transferir puntero de stack a X:
+X = S => Z, N
+Opcodes: 0xBA : implícito (2).
+Almacena SP en X, setea Z y N según lo asignado.
+TXA , Transfer X to Accumulator, transferir X al acumulador:
+A = X => Z, N
+Opcodes: 0x8A : implícito (2).
+Almacena X en A, setea Z y N.
+TXS , Transfer X to Stack pointer, transferir X al puntero de stack:
+SP = X
+Opcodes: 0x9A : implícito (2).
+Almacena X en SP, no setea flags.
+TYA , Transfer Y to Accumulator, transferir Y al acumulador:
+A = Y => Z, N
+Opcodes: 0x98 : implícito (2).
+Almacena Y en A, setea Z y N.
+Trabajo
+El objetivo del presente trabajo es proveer una implementación completa y funcional del emulador
+del MOS 6502 capaz de ejecutar ROMs reales.
+Los temas que se evaluarán en el siguiente trabajo son:
+Memoria dinámica,
+Modularización,
+Manejo de archivos,
+TDA,
+CLA.
+TDA
+Se debe implementar un TDA para modelar el MOS 6502, el mismo debe ser diseñado como parte
+del presente trabajo práctico.
+A través del TDA se deben proveer primitivas para:
+Crear,
+Destruir,
+Cargar una nueva ROM desde el nombre de archivo,
+Reiniciar el procesador,
+Ejecutar una instrucción,
+Setear el archivo de log.
+y todo lo que se considere que haga falta para interactuar con el procesador.
+Para implementar el TDA pueden reutilizarse las estructuras ya utilizadas en el EJ4, pero las mismas
+no deben ser visibles desde afuera y la interfaz del TP1 debe estar encapsulada en el TDA
+desarrollado.
+Archivos
+Se debe trabajar sobre dos archivos diferentes:
+Las ROMs que son archivos binarios, de 64 KB de tamaño.
+Un archivo de log al ejecutar cada instrucción. El archivo del log será un archivo de texto, en el
+cual se anexará al final el status de la última ejecución. El archivo deberá ser abierto cada vez
+que se agregue una línea.
+Especificaremos el formato del archivo de log en breve... ¡paciencia!
+Programa principal
+Se deberá entregar un programa el cual pueda ejecutarse como:
+$ ./tp1 archivo.rom [-ciclos numero] [-log archivo.log]
+el cual ejecute la ROM archivo.rom .
+Si se provee el flag -ciclos  se deberán ejecutar numero  instrucciones del procesador y terminar,
+si no se provee se ejecutará el programa hasta ser interrumpido.
+Si se provee el parámetro -log  se deberá escribir el registro de las operaciones en archivo.log .
+Makefile
+El proyecto tiene que ser modularizado correctamente, permitiendo la abstracción del procesador,
+siendo el programa principal un mero usuario del TDA del microprocesador que no conoce sus
+detalles de implementación.
+Pruebas
+Publicaremos archivos de ROM de ejemplo junto con los logfiles que genere la ejecución de los
+mismos... ¡paciencia!
+Entrega
+Deberán entregarse los fuentes del programa completo, así como el Makefile que genera el
+proyecto. El programa tiene que pasar las pruebas, así como correr sin errores y sin pérdidas de
+memoria.
+La entrega se realiza por correo a la dirección algoritmos9511entregas en gmail.com (reemplazar en
+por arroba).
+El trabajo práctico es grupal permitiéndose grupos de hasta 2 integrantes.
+Referencias
+Todo lo referido a las instrucciones del MOS 6502 volcado en este enunciado se construyó en base
+a las siguientes fuentes:
+Registros:
+http://www.obelisk.me.uk/6502/registers.html
+https://en.wikibooks.org/wiki/6502_Assembly#Compare_and_Test_Bit
+Direccionamientos:
+http://www.emulator101.com/6502-addressing-modes.html
+http://www.obelisk.me.uk/6502/addressing.html
+Instrucciones:
+http://www.obelisk.me.uk/6502/reference.html
+https://www.masswerk.at/6502/6502_instruction_set.html
+http://www.6502.org/tutorials/6502opcodes.html
+Este material puede servir de consulta para profundizar o contrastar lo aquí especificado.
+Parte 2: pruebas y errata
+Pruebas
+Se provee de un ROM que permite probar el funcionamiento del micro:
+https://drive.google.com/file/d/1pjytZLXskqjz0Lc8yooENCoSKD8aH5BA/view?usp=sharing
+El archivo zip provisto contiene los siguientes archivos:
+6502_functional_test.bin  ROM a ejecutar para las pruebas. Es un archivo binario de 64kb.
+6502_functional_test.a64  Código fuente en lenguaje ensamblador
+6502_functional_test.lst  Muestra la disposición del archivo binario en base al código fuente.
+Permite saber qué instrucción está en cada dirección de memoria.
+El ROM está dispuesto de forma tal que la primera instrucción está en la dirección 0x0400  (que es
+la dirección guardada en los registros 0xfffc  y 0xfffd ).
+El ROM hace una prueba exhaustiva de todas las instrucciones del micro. Si todas las pruebas se
+ejecutan exitosamente, el PC llegará a la dirección 0x336d .
+Si alguna prueba llegara a fallar, la ejecución llegará a un ciclo infinito que paralizará al micro,
+(codificado en ensamblador como jmp * , bne * , etc). En ese caso, una forma de entender cuál es
+la prueba que falló es investigar el valor del PC (por ejemplo 0x08c0 ), buscar esa direccción en el
+archivo LST (sin el 0x , por ejemplo 08c0 ) y ver las instrucciones que están previas a esa línea para
+entender la prueba que falló.
+Condición de corte
+Como ya dijimos, si todas las pruebas se ejecutan exitosamente el PC llegará a la instrucción en la
+dirección 0x336d , ¡pero esto ocurrirá luego de ejecutar 25 millones de instrucciones!.
+Para especificar la condición de corte al ejecutar el emulador, se puede utilizar -ciclos 83007452
+(que es la cantidad de ciclos que toma llegar a la instrucción mencionada).
+Otra opción es agregar un nuevo parámetro al programa, -halt abcd , que provoque que la
+ejecución se corte cuando el PC llega a la dirección 0xabcd . De esta manera con -halt 336d  se
+cortará la ejecución cuando pasen todas las pruebas. La ventaja de esta alternativa es que si alguna
+prueba falla se puede cortar fácilmente la ejecución en cualquier punto del programa para verificar
+el estado del micro.
+Log
+También se provee de un archivo de log con la salida esperada para una ejecución exitosa:
+https://drive.google.com/file/d/1HBnpbfi3Y9EM4KyEnNCde3pNH2dOVfbl/view?usp=sharing
+ Advertencia
+El archivo tp1-2019c2-log.zip pesa 30MB comprimido y 500MB descomprimido.
+Este archivo puede servir para entender, en caso de que alguna prueba falle, cuál fue la primera
+instrucción que generó un resultado diferente al esperado.
+Cada línea del archivo de log tiene el siguiente formato, expresado en la sintaxis de printf :
+%04x %02x %02x %02x %02x %02xn
+Respectivamente, cada uno de los valores impresos son: PC, A, X, Y, status, SP.
+Errata
+Para que pasen las pruebas, tenemos que hacer algunas correcciones al enunciado, que se
+enumeran a continuación:
+En las instrucciones BRK  y JSR , al apilar el PC se debe apilar primero la parte alta y luego la
+parte baja.
+La instrucción BRK  debe apilar el valor de PC + 1 (el byte siguiente a la instrucción BRK no
+contiene nada, y la dirección que se apila es la de la siguiente instrucción a ejecutar luego de
+volver de la interrupción).
+Las instrucciones BRK  y PHP  deben apilar status | (1 << 4) | (1 << 5) . Es decir, el status
+apilado tiene en 1 el flag B (bit 4) y el flag reservado (bit 5), independientemente del valor de
+esos bits en el status original.
+La instrucción BRK , luego de apilar el status, debe setear el flag I (en lugar del flag B).
+Las instrucciones RTI  y PLP  deben ignorar el valor de los bits 4 y 5 al desapilar el status. Es
+decir, al modificar el registro de status, esos dos bits deben quedar desafectados.
+Las instrucciones ADC  y SBC  afectan también el flag V .
+En la instrucción SBC , el carry representa un préstamo y tiene lógica negativa: si C = 0 significa
+que hay un préstamo, y si C = 1 significa que no hay préstamo. Esto vale tanto al interpretar el
+valor del C al hacer la operación como al setear el C luego de hacer la operación.
+Además, el flag V se debe calcular con la misma lógica de siempre (ver EJ3), pero utilizando A,
+~M y el resultado de la operación.
+Ayuda: SBC A M C  es equivalente a ADC A ~M C , incluyendo los resultados de todos los flags.
+La instrucción STY  con opcode 0x94 tiene direccionamiento zero page x.
+La instrucción BIT  setea los flags V y N según el valor de los bits 6 y 7 del operando M (en
+lugar del resultado de la operación).
+Excepto donde se indique lo contrario, todo el contenido de este sitio está licenciado bajo la
+licencia internacional CC BY-SA 4.0.
+Actualizado por última vez en 19 de junio de 2022.
+Built with Sphinx using a theme provided by Read the Docs.  
